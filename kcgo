@@ -1,0 +1,17 @@
+#! /bin/bash
+
+workspace=$(cd "$(dirname "$0")"; pwd)  
+
+export PATH=$GOROOT/bin:$PATH
+export GOPATH=$GOPATH:$workspace
+if [ $1 == "atom" ]; then
+    atom $workspace
+    exit 0
+fi
+if [ $1 == "glide" ]; then
+    glide install
+    exit 0
+fi
+
+ARGS=$@
+go $ARGS
