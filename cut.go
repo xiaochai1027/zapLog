@@ -3,6 +3,7 @@ package zlog
 import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
 )
 
 type CutConf struct {
@@ -20,6 +21,11 @@ func ZapCut(c CutConf, z zapcore.EncoderConfig, l zap.AtomicLevel) zapcore.Core 
 	zlvl := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= l.Level()
 	})
+
+	_, err := os_Stat(lum.Filename)
+	if os.IsNotExist(err) {
+		lum.openNew()
+	}
 	code := zapcore.NewJSONEncoder(z)
 	return zapcore.NewCore(code, zapcore.AddSync(lum), zlvl)
 }

@@ -60,20 +60,33 @@ func (logger *Zlog) CopyLogWithInfo(fields ...zapcore.Field) *Zlog {
 }
 
 func ZlogInit() *Zlog {
-	atomLv := zap.NewAtomicLevel()
-	atomLv.SetLevel(zapcore.DebugLevel)
+	//atomLv := zap.NewAtomicLevel()
+	//atomLv.SetLevel(zapcore.DebugLevel)
 	encoderCfg := zap.NewProductionEncoderConfig()
 	encoderCfg.EncodeTime = CustomTimeEncoder
-	debugCut := CutConf{}
-	debugCut.Compress = false //是否压缩
-	debugCut.MaxAge = 15      //保留旧日志文件的最大天数
-	debugCut.MaxSize = 1000   //文件大小 M
-	debugCut.MaxBackups = 30  //保留的旧日志文件的最大数量
-	debugCut.LocalTime = true
-	debugCut.FileName = "./log/signal.log" //文件位置
-	debugC := ZapCut(debugCut, encoderCfg, atomLv)
-	logger := zap.New(debugC, zap.AddStacktrace(zapcore.DPanicLevel), zap.ErrorOutput(nil))
-	log := &Zlog{Origin: logger, log: logger, AtomLv: atomLv}
+	dCut := CutConf{
+		MaxAge:     15,
+		MaxSize:    1000,
+		MaxBackups: 30,
+		LocalTime:  true,
+		FileName:   "./log/debug.log",
+	}
+	debugC := ZapCut(dCut, encoderCfg, zap.NewAtomicLevelAt(zapcore.DebugLevel))
+	eCut := CutConf{
+		MaxAge:     15,
+		MaxSize:    1000,
+		MaxBackups: 30,
+		LocalTime:  true,
+		FileName:   "./log/error.log",
+	}
+	errorC := ZapCut(eCut, encoderCfg, zap.NewAtomicLevelAt(zapcore.ErrorLevel))
+	//logger := zap.New(debugC, zap.AddStacktrace(zapcore.DPanicLevel), zap.ErrorOutput(nil))
+	core := zapcore.NewTee(
+		debugC,
+		errorC,
+	)
+	logger := zap.New(core, zap.AddStacktrace(zapcore.DPanicLevel), zap.ErrorOutput(nil))
+	log := &Zlog{Origin: logger, log: logger}
 	log.Info("zlog init.......")
 	log.FileExist = true
 	go flushDaemon(log.Sync, 3*time.Second)
@@ -83,7 +96,7 @@ func ZlogInit() *Zlog {
 func ZlogInitByCfg(zcfg *ZlogCfg) *Zlog {
 	atomLv := zap.NewAtomicLevel()
 	level := zapcore.DebugLevel
-	switch zcfg.Level {
+	switch strings.ToLower(zcfg.Level) {
 	case "debug":
 		level = zap.DebugLevel
 	case "info":
@@ -121,6 +134,77 @@ func ZlogInitByCfg(zcfg *ZlogCfg) *Zlog {
 	return log
 }
 
+//分级别存储文件
+func ZlogInitSplitFile(zcfg *ZlogCfg) *Zlog {
+	level := zapcore.InfoLevel
+	switch strings.ToLower(zcfg.Level) {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "info":
+		level = zapcore.InfoLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
+	default:
+		level = zap.InfoLevel
+	}
+	encoderCfg := zap.NewProductionEncoderConfig()
+	encoderCfg.EncodeTime = CustomTimeEncoder
+	var cores []zapcore.Core
+	cutCfg := CutConf{
+		Compress:   zcfg.Compress,   //是否压缩
+		MaxAge:     zcfg.MaxAge,     //保留旧日志文件的最大天数
+		MaxSize:    zcfg.MaxSize,    //文件大小 M
+		MaxBackups: zcfg.MaxBackups, //保留的旧日志文件的最大数量
+		LocalTime:  true,
+		FileName:   zcfg.FileName, //文件位置
+		BufferSize: zcfg.BuffSize, //buffio大小，单位为m
+	}
+	switch {
+	case level == zapcore.DebugLevel:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.DebugLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.DebugLevel)))
+		fallthrough
+	case level == zapcore.InfoLevel:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.InfoLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.InfoLevel)))
+		fallthrough
+	case level == zapcore.WarnLevel:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.WarnLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.WarnLevel)))
+		fallthrough
+	case level == zapcore.ErrorLevel:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.ErrorLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.ErrorLevel)))
+		fallthrough
+	case level == zapcore.DPanicLevel:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.DPanicLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.DPanicLevel)))
+	default:
+		core := cutCfg
+		core.FileName = replaceFileName(core.FileName, zapcore.InfoLevel)
+		cores = append(cores, ZapCut(core, encoderCfg, zap.NewAtomicLevelAt(zapcore.InfoLevel)))
+	}
+
+	var logger *zap.Logger
+	if zcfg.AddCaller {
+		logger = zap.New(zapcore.NewTee(cores...), zap.AddStacktrace(zapcore.DPanicLevel), zap.AddCaller(), zap.AddCallerSkip(zcfg.AddSkip))
+	} else {
+		logger = zap.New(zapcore.NewTee(cores...), zap.AddStacktrace(zapcore.DPanicLevel))
+	}
+	log := &Zlog{Origin: logger, log: logger}
+	log.Info("zlog init.......")
+	log.FileExist = true
+	go flushDaemon(log.Sync, zcfg.FlushInterval*time.Millisecond)
+	return log
+}
+
 func CustomTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 
 	if timestamp != t.Unix() {
@@ -152,4 +236,10 @@ func CustomTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 func getFileName(patch string) string {
 	name := filepath.Base(patch) //获取文件名带后缀
 	return strings.TrimSuffix(name, path.Ext(name))
+}
+
+func replaceFileName(path string, lv zapcore.Level) string {
+	name := getFileName(path)
+	newName := name + "_" + lv.String()
+	return strings.ReplaceAll(path, name, newName)
 }

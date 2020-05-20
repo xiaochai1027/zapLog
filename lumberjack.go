@@ -181,7 +181,10 @@ func (l *Logger) timeoutFlush(timeout time.Duration) {
 func (l *Logger) Sync() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.Flush()
+	if l.Writer != nil {
+		l.Flush()
+	}
+
 	l.file.Sync()
 	return nil
 }
