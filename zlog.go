@@ -238,8 +238,9 @@ func getFileName(patch string) string {
 	return strings.TrimSuffix(name, path.Ext(name))
 }
 
-func replaceFileName(path string, lv zapcore.Level) string {
-	name := getFileName(path)
-	newName := name + "_" + lv.String()
-	return strings.ReplaceAll(path, name, newName)
+func replaceFileName(pathstr string, lv zapcore.Level) string {
+	dir, file := path.Split(pathstr)
+	name := getFileName(pathstr)
+	newName := name + "-" + lv.String()
+	return dir + strings.Replace(file, name, newName, 1)
 }
