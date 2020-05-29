@@ -1,37 +1,58 @@
 package zlog
 
 import (
-	"flag"
+	"github.com/spf13/viper"
 	"time"
-
-	"gitlab.xuanke.com/live/kconf"
 )
 
 type ZlogCfg struct {
-	Level         string        `kconf:"level"`
-	Compress      bool          `kconf:"compress"`
-	MaxAge        int           `kconf:"max_age"`
-	MaxSize       int           `kconf:"max_size"`
-	MaxBackups    int           `kconf:"max_backups"`
-	FileName      string        `kconf:"file_name"`
-	FlushInterval time.Duration `kconf:"flush_interval"`
-	BuffSize      int           `kconf:"buff_size"`
-	AddCaller     bool          `kconf:"add_caller"`
-	AddSkip       int           `kconf:"add_skip"`
+	Level         string
+	Compress      bool
+	MaxAge        int
+	MaxSize       int
+	MaxBackups    int
+	FileName      string
+	FlushInterval time.Duration
+	BuffSize      int
+	AddCaller     bool
+	AddSkip       int
 }
 
 type Config struct {
 	Zlog ZlogCfg `kconf:"zlog"`
 }
 
-func InitConfig(path string) (error, ZlogCfg) {
-	flag.Parse()
+func InitConfig(confPath,confName,confType string) (error, *ZlogCfg) {
+	//设置默认值
+	viper.SetDefault("zlog.file_name", "./zlog")
+	viper.SetDefault("zlog.compress", false)
+	viper.SetDefault("zlog.max_age", 15)
+	viper.SetDefault("zlog.max_size", 500)
+	viper.SetDefault("zlog.max_backups", 30)
+	viper.SetDefault("zlog.flush_interval", 300)
+	viper.SetDefault("zlog.buff_size", 10)
+	viper.SetDefault("zlog.add_caller", true)
+	viper.SetDefault("zlog.add_skip", 1)
+	viper.AddConfigPath(confPath)
+	viper.SetConfigName(confName)
+	viper.SetConfigType(confType)
 
-	var config Config
-	err := kconf.LoadConfig(path, &config)
+	err := viper.ReadInConfig()
 	if err != nil {
-		return err, ZlogCfg{}
+		return err,nil
 	}
 
-	return nil, config.Zlog
+	zlogcnf := &ZlogCfg{
+		Level:         viper.GetString("zlog.level"),
+		Compress:      viper.GetBool("zlog.compress"),
+		MaxAge:        viper.GetInt("zlog.max_age"),
+		MaxSize:       viper.GetInt("zlog.max_size"),
+		MaxBackups:    viper.GetInt("zlog.max_backups"),
+		FileName:      viper.GetString("zlog.file_name"),
+		FlushInterval: viper.GetDuration("zlog.flush_interval"),
+		BuffSize:      viper.GetInt("zlog.buff_size"),
+		AddCaller:     viper.GetBool("zlog.add_caller"),
+		AddSkip:       viper.GetInt("zlog.add_skip"),
+	}
+	return err, zlogcnf
 }

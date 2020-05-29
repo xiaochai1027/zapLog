@@ -1,0 +1,11 @@
+zlog:
+  level: info
+  compress: false
+  max_age: 15 #保留旧日志文件的最大天数
+  max_size: 1000 #文件大小，单位m
+  max_backups: 30 #保留的旧日志文件的最大数量
+  file_name: ./log/zlog.log
+  flush_interval: 3000 #刷新间隔，单位毫秒
+  buff_size: 10 #缓存大小，单位m
+  add_caller: true #是否打印调用行
+  add_skip: 1  #堆栈跳过行数
