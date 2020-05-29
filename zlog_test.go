@@ -41,14 +41,24 @@ func Test_zlog(t *testing.T) {
 
 }
 
-func Test_zlog_config(t *testing.T){
-	err,zlogConf := InitConfig("./","zloga","yaml")
+func Test_zlog_config(t *testing.T) {
+	err, zlogConf := InitConfig("./", "zlog", "yaml")
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	zlog := ZlogInitSplitFile(zlogConf)
 	defer zlog.Sync()
-	zlog.Info("info",zap.String("name","info..."))
+	zlog.Info("info", zap.String("name", "info..."))
+}
 
+func Test_zlog_config2(t *testing.T) {
+	err, zlogConf := InitConfigByFilePath("./zlog.yaml")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	zlog := ZlogInitSplitFile(zlogConf)
+	defer zlog.Sync()
+	zlog.Info("info", zap.String("name", "info..."))
 }
